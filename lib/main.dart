@@ -1,125 +1,261 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'scanned_barcode_label.dart';
+import 'scanner_error_widget.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const MaterialApp(
+    title: 'QRER',
+    home: MyHomePage(),
+  ));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
+class MyHomePage extends StatelessWidget {
+  const MyHomePage({super.key});
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
-    );
-  }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
+      appBar: AppBar(title: const Text('Mobile Scanner Example')),
       body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const BarcodeScannerWithScanWindow(),
+                  ),
+                );
+              },
+              child: const Text('MobileScanner with ScanWindow'),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
+  }
+}
+
+class BarcodeScannerWithScanWindow extends StatefulWidget {
+  const BarcodeScannerWithScanWindow({super.key});
+
+  @override
+  State<BarcodeScannerWithScanWindow> createState() =>
+      _BarcodeScannerWithScanWindowState();
+}
+
+class _BarcodeScannerWithScanWindowState
+    extends State<BarcodeScannerWithScanWindow> {
+  final MobileScannerController controller = MobileScannerController();
+
+  Widget _buildBarcodeOverlay() {
+    return ValueListenableBuilder(
+      valueListenable: controller,
+      builder: (context, value, child) {
+        // Not ready.
+        if (!value.isInitialized || !value.isRunning || value.error != null) {
+          return const SizedBox();
+        }
+
+        return StreamBuilder<BarcodeCapture>(
+          stream: controller.barcodes,
+          builder: (context, snapshot) {
+            final BarcodeCapture? barcodeCapture = snapshot.data;
+
+            // No barcode.
+            if (barcodeCapture == null || barcodeCapture.barcodes.isEmpty) {
+              return const SizedBox();
+            }
+
+            final scannedBarcode = barcodeCapture.barcodes.first;
+
+            // No barcode corners, or size, or no camera preview size.
+            if (scannedBarcode.corners.isEmpty ||
+                value.size.isEmpty ||
+                barcodeCapture.size.isEmpty) {
+              return const SizedBox();
+            }
+
+            return CustomPaint(
+              painter: BarcodeOverlay(
+                barcodeCorners: scannedBarcode.corners,
+                barcodeSize: barcodeCapture.size,
+                boxFit: BoxFit.contain,
+                cameraPreviewSize: value.size,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildScanWindow(Rect scanWindowRect) {
+    return ValueListenableBuilder(
+      valueListenable: controller,
+      builder: (context, value, child) {
+        // Not ready.
+        if (!value.isInitialized ||
+            !value.isRunning ||
+            value.error != null ||
+            value.size.isEmpty) {
+          return const SizedBox();
+        }
+
+        return CustomPaint(
+          painter: ScannerOverlay(scanWindowRect),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scanWindow = Rect.fromCenter(
+      center: MediaQuery.sizeOf(context).center(Offset.zero),
+      width: 200,
+      height: 200,
+    );
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('With Scan window')),
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          MobileScanner(
+            fit: BoxFit.contain,
+            scanWindow: scanWindow,
+            controller: controller,
+            errorBuilder: (context, error, child) {
+              return ScannerErrorWidget(error: error);
+            },
+          ),
+          _buildBarcodeOverlay(),
+          _buildScanWindow(scanWindow),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              height: 100,
+              color: Colors.black.withOpacity(0.4),
+              child: ScannedBarcodeLabel(barcodes: controller.barcodes),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Future<void> dispose() async {
+    super.dispose();
+    await controller.dispose();
+  }
+}
+
+class ScannerOverlay extends CustomPainter {
+  ScannerOverlay(this.scanWindow);
+
+  final Rect scanWindow;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // TODO: use `Offset.zero & size` instead of Rect.largest
+    // we need to pass the size to the custom paint widget
+    final backgroundPath = Path()..addRect(Rect.largest);
+    final cutoutPath = Path()..addRect(scanWindow);
+
+    final backgroundPaint = Paint()
+      ..color = Colors.black.withOpacity(0.5)
+      ..style = PaintingStyle.fill
+      ..blendMode = BlendMode.dstOut;
+
+    final backgroundWithCutout = Path.combine(
+      PathOperation.difference,
+      backgroundPath,
+      cutoutPath,
+    );
+    canvas.drawPath(backgroundWithCutout, backgroundPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return false;
+  }
+}
+
+class BarcodeOverlay extends CustomPainter {
+  BarcodeOverlay({
+    required this.barcodeCorners,
+    required this.barcodeSize,
+    required this.boxFit,
+    required this.cameraPreviewSize,
+  });
+
+  final List<Offset> barcodeCorners;
+  final Size barcodeSize;
+  final BoxFit boxFit;
+  final Size cameraPreviewSize;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (barcodeCorners.isEmpty ||
+        barcodeSize.isEmpty ||
+        cameraPreviewSize.isEmpty) {
+      return;
+    }
+
+    final adjustedSize = applyBoxFit(boxFit, cameraPreviewSize, size);
+
+    double verticalPadding = size.height - adjustedSize.destination.height;
+    double horizontalPadding = size.width - adjustedSize.destination.width;
+    if (verticalPadding > 0) {
+      verticalPadding = verticalPadding / 2;
+    } else {
+      verticalPadding = 0;
+    }
+
+    if (horizontalPadding > 0) {
+      horizontalPadding = horizontalPadding / 2;
+    } else {
+      horizontalPadding = 0;
+    }
+
+    final double ratioWidth;
+    final double ratioHeight;
+
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      ratioWidth = barcodeSize.width / adjustedSize.destination.width;
+      ratioHeight = barcodeSize.height / adjustedSize.destination.height;
+    } else {
+      ratioWidth = cameraPreviewSize.width / adjustedSize.destination.width;
+      ratioHeight = cameraPreviewSize.height / adjustedSize.destination.height;
+    }
+
+    final List<Offset> adjustedOffset = [
+      for (final offset in barcodeCorners)
+        Offset(
+          offset.dx / ratioWidth + horizontalPadding,
+          offset.dy / ratioHeight + verticalPadding,
+        ),
+    ];
+
+    final cutoutPath = Path()..addPolygon(adjustedOffset, true);
+
+    final backgroundPaint = Paint()
+      ..color = Colors.red.withOpacity(0.3)
+      ..style = PaintingStyle.fill
+      ..blendMode = BlendMode.dstOut;
+
+    canvas.drawPath(cutoutPath, backgroundPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return false;
   }
 }
