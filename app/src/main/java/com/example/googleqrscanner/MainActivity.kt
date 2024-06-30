@@ -11,9 +11,17 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanner
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import okio.IOException
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
 
@@ -70,37 +78,43 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private suspend fun qrAPI(value: String): String? {
+
+        val client = OkHttpClient()
+        val formBody = FormBody.Builder()
+            .add("qrraw", value)
+            .add("token", "27643.f8kIwQlqpqtBt8LvD")
+            .build()
+
+        val request = Request.Builder()
+            .url("https://proverkacheka.com/api/v1/check/get")
+            .post(formBody)
+            .build()
+
+        return client.newCall(request).execute().body?.string()
+    }
+
     private fun startScanning() {
         scanner.startScan().addOnSuccessListener {
             val result = it.rawValue
-            result?.let {
+            result?.let { qrCodeValue ->
                 scannedValueTv.text = buildString {
                     append("Scanned Value : ")
-                    append(it)
+                    append(qrCodeValue)
                 }
-            }
+                println(qrCodeValue);
 
-            val client = OkHttpClient()
-
-            val request = Request.Builder()
-                .url("https://publicobject.com/helloworld.txt")
-                .build()
-
-            try {
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        throw IOException("Запрос к серверу не был успешен:" +
-                                " ${response.code} ${response.message}")
+                GlobalScope.launch(Dispatchers.IO) {
+                    val json_string = qrAPI(qrCodeValue)
+                    val json = json_string?.let { it1 -> JSONObject(it1) }
+                    val items = json?.getJSONObject("data")?.getJSONObject("json")?.getJSONArray("items")
+                    if (items != null) {
+                        for (i in 0..<items.length()) {
+                            println(items[i])
+                        }
                     }
-                    // пример получения конкретного заголовка ответа
-                    println("Server: ${response.header("Server")}")
-                    // вывод тела ответа
-                    println(response.body!!.string())
                 }
-            } catch (e: IOException) {
-                println("Ошибка подключения: $e");
             }
-
         }.addOnCanceledListener {
             Toast.makeText(this, "Cancelled", Toast.LENGTH_SHORT).show()
 
